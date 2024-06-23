@@ -1,4 +1,5 @@
 const express = require('express');
+const cors = require('cors');
 const path = require('path');
 const fs = require('fs').promises;
 const words = require('./data/words');
@@ -6,12 +7,11 @@ const words = require('./data/words');
 const app = express();
 const PORT = process.env.PORT || 5001;
 
+app.use(cors());
 app.use(express.json());
 
-// Serve static files from the React app in production
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../client/build')));
-}
+// Serve static files from the React app
+app.use(express.static(path.join(__dirname, '../client/build')));
 
 // API endpoint to get the daily word
 app.get('/api/daily-word', (req, res) => {
@@ -25,7 +25,7 @@ app.get('/api/daily-word', (req, res) => {
       hint2: words[index].hint2,
       hint3: words[index].hint3
     },
-    validWords: words.map(word => word.word)  // Add this line to include all valid words
+    validWords: words.map(word => word.word)
   });
 });
 
@@ -49,11 +49,9 @@ app.post('/api/log-event', (req, res) => {
 
 // The "catchall" handler: for any request that doesn't
 // match one above, send back React's index.html file.
-if (process.env.NODE_ENV === 'production') {
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../client/build/index.html'));
-  });
-}
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../client/build/index.html'));
+});
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
