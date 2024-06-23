@@ -26,6 +26,7 @@ const Game = () => {
   const [showHints, setShowHints] = useState(false);
   const [stats, setStats] = useState({ played: 0, won: 0, streak: 0, maxStreak: 0, guesses: {} });
   const [isLoading, setIsLoading] = useState(true);
+  const [validWords, setValidWords] = useState([]);
 
   useEffect(() => {
     fetchDailyWord();
@@ -37,6 +38,7 @@ const Game = () => {
       const response = await axios.get('/api/daily-word');
       setAnswer(response.data.word.toUpperCase());
       setHints(response.data.hints);
+      setValidWords(response.data.validWords.map(word => word.toUpperCase()));
       setGuesses(Array(MAX_GUESSES).fill(''));
       setIsLoading(false);
     } catch (error) {
@@ -65,12 +67,17 @@ const Game = () => {
     localStorage.setItem('geoWordleStats', JSON.stringify(newStats));
   };
 
-  const handleKeyPress = useCallback((key) => {
+  const handleKeyPress = useCallback(async (key) => {
     if (gameOver) return;
 
     if (key === 'Enter') {
       if (currentGuess.length !== answer.length) {
         setToast({ message: `Word must be ${answer.length} letters`, type: 'error' });
+        return;
+      }
+
+      if (!validWords.includes(currentGuess)) {
+        setToast({ message: 'Not a valid word', type: 'error' });
         return;
       }
 
@@ -113,7 +120,7 @@ const Game = () => {
     } else if (currentGuess.length < answer.length && /^[A-Z]$/.test(key)) {
       setCurrentGuess(prev => prev + key);
     }
-  }, [answer, currentGuess, gameOver, guesses, usedLetters]);
+  }, [answer, currentGuess, gameOver, guesses, usedLetters, validWords]);
 
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -141,9 +148,13 @@ const Game = () => {
         answer[index] === letter ? '🟩' : answer.includes(letter) ? '🟨' : '⬛'
       ).join('')
     ).join('\n');
-    const shareText = `GeoWordle ${date} ${guessCount}/6\n\n${emojiGrid}`;
-    navigator.clipboard.writeText(shareText);
-    setToast({ message: 'Results copied to clipboard!', type: 'success' });
+    const shareText = `GeoWordle ${date} ${guessCount}/${MAX_GUESSES}\n\n${emojiGrid}`;
+    navigator.clipboard.writeText(shareText).then(() => {
+      setToast({ message: 'Results copied to clipboard!', type: 'success' });
+    }, (err) => {
+      console.error('Could not copy text: ', err);
+      setToast({ message: 'Failed to copy results', type: 'error' });
+    });
   };
 
   if (isLoading) {
@@ -210,7 +221,14 @@ const Game = () => {
         )}
       </AnimatePresence>
 
-      <HintSystem show={showHints} onClose={() => setShowHints(false)} hints={hints} darkMode={darkMode} />
+      <HintSystem 
+        show={showHints} 
+        onClose={() => {
+          setShowHints(false);
+        }} 
+        hints={hints} 
+        darkMode={darkMode} 
+      />
       <RulesModal show={showRules} onClose={() => setShowRules(false)} darkMode={darkMode} />
       <StatsModal show={showStats} onClose={() => setShowStats(false)} stats={stats} darkMode={darkMode} />
     </div>

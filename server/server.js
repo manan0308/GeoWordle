@@ -24,7 +24,8 @@ app.get('/api/daily-word', (req, res) => {
       hint1: words[index].hint1,
       hint2: words[index].hint2,
       hint3: words[index].hint3
-    }
+    },
+    validWords: words.map(word => word.word)  // Add this line to include all valid words
   });
 });
 
