@@ -9,10 +9,12 @@ import StatsModal from './StatsModal';
 import RulesModal from './RulesModal';
 import HintSystem from './HintSystem';
 import Toast from './Toast';
+import { logError } from '../services/logService';
 
 const MAX_GUESSES = 6;
 
 const Game = () => {
+  console.log('Game component rendering');
   const [answer, setAnswer] = useState('');
   const [hints, setHints] = useState({});
   const [guesses, setGuesses] = useState([]);
@@ -26,7 +28,6 @@ const Game = () => {
   const [showHints, setShowHints] = useState(false);
   const [stats, setStats] = useState({ played: 0, won: 0, streak: 0, maxStreak: 0, guesses: {} });
   const [isLoading, setIsLoading] = useState(true);
-  const [validWords, setValidWords] = useState([]);
 
   useEffect(() => {
     fetchDailyWord();
@@ -38,89 +39,103 @@ const Game = () => {
       const response = await axios.get('/api/daily-word');
       setAnswer(response.data.word.toUpperCase());
       setHints(response.data.hints);
-      setValidWords(response.data.validWords.map(word => word.toUpperCase()));
       setGuesses(Array(MAX_GUESSES).fill(''));
       setIsLoading(false);
     } catch (error) {
+      logError('Error fetching daily word', error);
       console.error('Error fetching daily word:', error);
       setToast({ message: 'Error loading game. Please try again.', type: 'error' });
+      setIsLoading(false);
     }
   };
 
   const loadStats = () => {
-    const savedStats = JSON.parse(localStorage.getItem('geoWordleStats') || '{"played":0,"won":0,"streak":0,"maxStreak":0,"guesses":{}}');
-    setStats(savedStats);
+    try {
+      const savedStats = JSON.parse(localStorage.getItem('geoWordleStats') || '{"played":0,"won":0,"streak":0,"maxStreak":0,"guesses":{}}');
+      setStats(savedStats);
+    } catch (error) {
+      logError('Error loading stats', error);
+      console.error('Error loading stats:', error);
+      setToast({ message: 'Error loading stats. Using default values.', type: 'error' });
+    }
   };
 
   const updateStats = (won, attempts) => {
-    const newStats = {
-      played: stats.played + 1,
-      won: stats.won + (won ? 1 : 0),
-      streak: won ? stats.streak + 1 : 0,
-      maxStreak: won ? Math.max(stats.maxStreak, stats.streak + 1) : stats.maxStreak,
-      guesses: {
-        ...stats.guesses,
-        [attempts]: (stats.guesses[attempts] || 0) + 1
-      }
-    };
-    setStats(newStats);
-    localStorage.setItem('geoWordleStats', JSON.stringify(newStats));
+    try {
+      const newStats = {
+        played: stats.played + 1,
+        won: stats.won + (won ? 1 : 0),
+        streak: won ? stats.streak + 1 : 0,
+        maxStreak: won ? Math.max(stats.maxStreak, stats.streak + 1) : stats.maxStreak,
+        guesses: {
+          ...stats.guesses,
+          [attempts]: (stats.guesses[attempts] || 0) + 1
+        }
+      };
+      setStats(newStats);
+      localStorage.setItem('geoWordleStats', JSON.stringify(newStats));
+    } catch (error) {
+      logError('Error updating stats', error);
+      console.error('Error updating stats:', error);
+      setToast({ message: 'Error updating stats.', type: 'error' });
+    }
   };
 
   const handleKeyPress = useCallback(async (key) => {
     if (gameOver) return;
 
-    if (key === 'Enter') {
-      if (currentGuess.length !== answer.length) {
-        setToast({ message: `Word must be ${answer.length} letters`, type: 'error' });
-        return;
-      }
-
-      if (!validWords.includes(currentGuess)) {
-        setToast({ message: 'Not a valid word', type: 'error' });
-        return;
-      }
-
-      const currentGuessIndex = guesses.findIndex(guess => guess === '');
-      if (currentGuessIndex === -1) return;
-
-      setGuesses(prev => {
-        const newGuesses = [...prev];
-        newGuesses[currentGuessIndex] = currentGuess;
-        return newGuesses;
-      });
-
-      const newUsedLetters = { ...usedLetters };
-      for (let i = 0; i < currentGuess.length; i++) {
-        const letter = currentGuess[i];
-        if (answer[i] === letter) {
-          newUsedLetters[letter] = 'correct';
-        } else if (answer.includes(letter) && newUsedLetters[letter] !== 'correct') {
-          newUsedLetters[letter] = 'present';
-        } else if (!newUsedLetters[letter]) {
-          newUsedLetters[letter] = 'absent';
+    try {
+      if (key === 'Enter') {
+        if (currentGuess.length !== answer.length) {
+          setToast({ message: `Word must be ${answer.length} letters`, type: 'error' });
+          return;
         }
-      }
-      setUsedLetters(newUsedLetters);
 
-      if (currentGuess === answer) {
-        setGameOver(true);
-        setToast({ message: 'Congratulations! You guessed it!', type: 'success' });
-        confetti();
-        updateStats(true, currentGuessIndex + 1);
-      } else if (currentGuessIndex === MAX_GUESSES - 1) {
-        setGameOver(true);
-        setToast({ message: `Game over. The word was ${answer}.`, type: 'error' });
-        updateStats(false, MAX_GUESSES);
-      }
+        const currentGuessIndex = guesses.findIndex(guess => guess === '');
+        if (currentGuessIndex === -1) return;
 
-      setCurrentGuess('');
-    } else if (key === 'Backspace') {
-      setCurrentGuess(prev => prev.slice(0, -1));
-    } else if (currentGuess.length < answer.length && /^[A-Z]$/.test(key)) {
-      setCurrentGuess(prev => prev + key);
+        setGuesses(prev => {
+          const newGuesses = [...prev];
+          newGuesses[currentGuessIndex] = currentGuess;
+          return newGuesses;
+        });
+
+        const newUsedLetters = { ...usedLetters };
+        for (let i = 0; i < currentGuess.length; i++) {
+          const letter = currentGuess[i];
+          if (answer[i] === letter) {
+            newUsedLetters[letter] = 'correct';
+          } else if (answer.includes(letter) && newUsedLetters[letter] !== 'correct') {
+            newUsedLetters[letter] = 'present';
+          } else if (!newUsedLetters[letter]) {
+            newUsedLetters[letter] = 'absent';
+          }
+        }
+        setUsedLetters(newUsedLetters);
+
+        if (currentGuess === answer) {
+          setGameOver(true);
+          setToast({ message: 'Congratulations! You guessed it!', type: 'success' });
+          confetti();
+          updateStats(true, currentGuessIndex + 1);
+        } else if (currentGuessIndex === MAX_GUESSES - 1) {
+          setGameOver(true);
+          setToast({ message: `Game over. The word was ${answer}.`, type: 'error' });
+          updateStats(false, MAX_GUESSES);
+        }
+
+        setCurrentGuess('');
+      } else if (key === 'Backspace') {
+        setCurrentGuess(prev => prev.slice(0, -1));
+      } else if (currentGuess.length < answer.length && /^[A-Z]$/.test(key)) {
+        setCurrentGuess(prev => prev + key);
+      }
+    } catch (error) {
+      logError('Error handling key press', error);
+      console.error('Error handling key press:', error);
+      setToast({ message: 'An error occurred. Please try again.', type: 'error' });
     }
-  }, [answer, currentGuess, gameOver, guesses, usedLetters, validWords]);
+  }, [answer, currentGuess, gameOver, guesses, usedLetters]);
 
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -141,20 +156,25 @@ const Game = () => {
   }, [handleKeyPress]);
 
   const shareResults = () => {
-    const date = format(new Date(), 'yyyy-MM-dd');
-    const guessCount = guesses.filter(guess => guess !== '').length;
-    const emojiGrid = guesses.map(guess => 
-      guess.split('').map((letter, index) => 
-        answer[index] === letter ? '🟩' : answer.includes(letter) ? '🟨' : '⬛'
-      ).join('')
-    ).join('\n');
-    const shareText = `GeoWordle ${date} ${guessCount}/${MAX_GUESSES}\n\n${emojiGrid}`;
-    navigator.clipboard.writeText(shareText).then(() => {
-      setToast({ message: 'Results copied to clipboard!', type: 'success' });
-    }, (err) => {
-      console.error('Could not copy text: ', err);
+    try {
+      const date = format(new Date(), 'yyyy-MM-dd');
+      const guessCount = guesses.filter(guess => guess !== '').length;
+      const emojiGrid = guesses.map(guess => 
+        guess.split('').map((letter, index) => 
+          answer[index] === letter ? '🟩' : answer.includes(letter) ? '🟨' : '⬛'
+        ).join('')
+      ).join('\n');
+      const shareText = `GeoWordle ${date} ${guessCount}/${MAX_GUESSES}\n\n${emojiGrid}`;
+      navigator.clipboard.writeText(shareText).then(() => {
+        setToast({ message: 'Results copied to clipboard!', type: 'success' });
+      }, (err) => {
+        throw err;
+      });
+    } catch (error) {
+      logError('Error sharing results', error);
+      console.error('Could not copy text: ', error);
       setToast({ message: 'Failed to copy results', type: 'error' });
-    });
+    }
   };
 
   if (isLoading) {
@@ -229,7 +249,7 @@ const Game = () => {
         hints={hints} 
         darkMode={darkMode} 
       />
-      <RulesModal show={showRules} onClose={() => setShowRules(false)} darkMode={darkMode} />
+      <RulesModal show={showRules} onClose={() => setShowRules(false)} darkMode={darkMode} wordLength={answer.length} />
       <StatsModal show={showStats} onClose={() => setShowStats(false)} stats={stats} darkMode={darkMode} />
     </div>
   );
