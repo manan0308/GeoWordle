@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { trackEvent } from '../utils/analytics';
+
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
@@ -32,6 +34,12 @@ const Game = () => {
   useEffect(() => {
     fetchDailyWord();
     loadStats();
+    
+    const timer = setTimeout(() => {
+      trackEvent('game_start', { 'event_category': 'Game', 'event_label': 'New Game Started' });
+    }, 1000);
+
+    return () => clearTimeout(timer);
   }, []);
 
   const fetchDailyWord = async () => {
