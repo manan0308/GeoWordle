@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, MapPin, ChevronRight } from 'lucide-react';
+import { logError } from '../services/logService';
 
 const HintSystem = ({ show, onClose, hints, darkMode }) => {
   const [revealedHints, setRevealedHints] = useState(0);
@@ -8,6 +9,10 @@ const HintSystem = ({ show, onClose, hints, darkMode }) => {
   const revealNextHint = () => {
     if (revealedHints < 3) {
       setRevealedHints(revealedHints + 1);
+      window.gtag('event', 'use_hint', {
+        'event_category': 'Game',
+        'event_label': `Hint ${revealedHints + 1} Revealed`
+      });
     }
   };
 
