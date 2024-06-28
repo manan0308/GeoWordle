@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, MapPin, ChevronRight } from 'lucide-react';
-import { logError } from '../services/logService';
 
 const HintSystem = ({ show, onClose, hints, darkMode }) => {
   const [revealedHints, setRevealedHints] = useState(0);
