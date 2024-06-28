@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { trackEvent } from '../utils/analytics';
-
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
@@ -11,12 +10,13 @@ import StatsModal from './StatsModal';
 import RulesModal from './RulesModal';
 import HintSystem from './HintSystem';
 import Toast from './Toast';
+import WelcomeModal from './WelcomeModal';
 import { logError } from '../services/logService';
+import { validateWord } from '../utils/wordValidator';
 
 const MAX_GUESSES = 6;
 
 const Game = () => {
-  console.log('Game component rendering');
   const [answer, setAnswer] = useState('');
   const [hints, setHints] = useState({});
   const [guesses, setGuesses] = useState([]);
@@ -30,6 +30,8 @@ const Game = () => {
   const [showHints, setShowHints] = useState(false);
   const [stats, setStats] = useState({ played: 0, won: 0, streak: 0, maxStreak: 0, guesses: {} });
   const [isLoading, setIsLoading] = useState(true);
+  const [showWelcome, setShowWelcome] = useState(true);
+  const invisibleInputRef = useRef(null);
 
   useEffect(() => {
     fetchDailyWord();
@@ -89,6 +91,12 @@ const Game = () => {
     }
   };
 
+  const focusInvisibleInput = () => {
+    if (invisibleInputRef.current) {
+      invisibleInputRef.current.focus();
+    }
+  };
+
   const handleKeyPress = useCallback(async (key) => {
     if (gameOver) return;
 
@@ -96,6 +104,12 @@ const Game = () => {
       if (key === 'Enter') {
         if (currentGuess.length !== answer.length) {
           setToast({ message: `Word must be ${answer.length} letters`, type: 'error' });
+          return;
+        }
+
+        const isValid = await validateWord(currentGuess);
+        if (!isValid) {
+          setToast({ message: 'Not a valid word', type: 'error' });
           return;
         }
 
@@ -191,6 +205,12 @@ const Game = () => {
 
   return (
     <div className={`flex flex-col items-center min-h-screen p-4 ${darkMode ? 'bg-gray-900 text-white' : 'bg-white text-black'}`}>
+      <input
+        ref={invisibleInputRef}
+        type="text"
+        className="opacity-0 absolute"
+        onFocus={() => focusInvisibleInput()}
+      />
       <header className="w-full max-w-lg flex justify-between items-center mb-8">
         <button onClick={() => setShowRules(true)} className="p-2"><Info size={24} /></button>
         <h1 className="text-4xl font-bold flex items-center">
@@ -239,7 +259,8 @@ const Game = () => {
           className={`flex items-center px-4 py-2 rounded ${darkMode ? 'bg-green-600' : 'bg-green-500'} text-white`}
           disabled={!gameOver}
         >
-          <Share2 className="mr-2" size={18} /> Share
+          <Share2 className="mr-2" size={18} />
+          Share
         </button>
       </div>
 
@@ -259,6 +280,7 @@ const Game = () => {
       />
       <RulesModal show={showRules} onClose={() => setShowRules(false)} darkMode={darkMode} wordLength={answer.length} />
       <StatsModal show={showStats} onClose={() => setShowStats(false)} stats={stats} darkMode={darkMode} />
+      <WelcomeModal show={showWelcome} onClose={() => setShowWelcome(false)} />
     </div>
   );
 };
