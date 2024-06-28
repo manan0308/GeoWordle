@@ -58,6 +58,11 @@ app.get('/api/validate-word', async (req, res) => {
   const APP_ID = process.env.REACT_APP_OXFORD_APP_ID;
   const APP_KEY = process.env.REACT_APP_OXFORD_APP_KEY;
 
+  if (!API_URL || !APP_ID || !APP_KEY) {
+    console.error('Oxford API credentials are not set');
+    return res.status(500).json({ error: 'Oxford API credentials are not set' });
+  }
+
   try {
     const response = await axios.get(`${API_URL}/search/en-gb`, {
       params: {
@@ -72,7 +77,6 @@ app.get('/api/validate-word', async (req, res) => {
         'app_key': APP_KEY,
       }
     });
-
     res.json({ isValid: response.data.results && response.data.results.length > 0 });
   } catch (error) {
     console.error('Error validating word:', error);
