@@ -1,8 +1,10 @@
 const express = require('express');
-const cors = require('cors');
 const path = require('path');
 const fs = require('fs').promises;
 const words = require('./data/words');
+const cors = require('cors');
+const axios = require('axios');
+require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -10,8 +12,10 @@ const PORT = process.env.PORT || 5001;
 app.use(cors());
 app.use(express.json());
 
-// Serve static files from the React app
-app.use(express.static(path.join(__dirname, '../client/build')));
+// Serve static files from the React app in production
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../client/build')));
+}
 
 // API endpoint to get the daily word
 app.get('/api/daily-word', (req, res) => {
@@ -47,11 +51,42 @@ app.post('/api/log-event', (req, res) => {
   res.sendStatus(200);
 });
 
+// New API endpoint to validate words using Oxford API
+app.get('/api/validate-word', async (req, res) => {
+  const { word } = req.query;
+  const API_URL = process.env.REACT_APP_OXFORD_API_URL;
+  const APP_ID = process.env.REACT_APP_OXFORD_APP_ID;
+  const APP_KEY = process.env.REACT_APP_OXFORD_APP_KEY;
+
+  try {
+    const response = await axios.get(`${API_URL}/search/en-gb`, {
+      params: {
+        q: word,
+        limit: 1,
+        offset: 0,
+        prefix: 'false'
+      },
+      headers: {
+        'Accept': 'application/json',
+        'app_id': APP_ID,
+        'app_key': APP_KEY,
+      }
+    });
+
+    res.json({ isValid: response.data.results && response.data.results.length > 0 });
+  } catch (error) {
+    console.error('Error validating word:', error);
+    res.status(500).json({ error: 'Error validating word' });
+  }
+});
+
 // The "catchall" handler: for any request that doesn't
 // match one above, send back React's index.html file.
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../client/build/index.html'));
-});
+if (process.env.NODE_ENV === 'production') {
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../client/build/index.html'));
+  });
+}
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
