@@ -10,7 +10,7 @@ const KEYBOARD_ROWS = [
 
 const Keyboard = ({ usedLetters, onKeyPress, darkMode }) => {
   const getKeyClass = (key) => {
-    const baseClass = "px-1 py-2 rounded font-semibold text-xs sm:text-sm md:text-base";
+    const baseClass = "px-2 py-3 sm:px-3 sm:py-4 rounded font-semibold text-sm sm:text-base md:text-lg";
     if (key === 'Enter' || key === 'Backspace') return `${baseClass} px-2 ${darkMode ? 'bg-gray-600 text-white' : 'bg-gray-200 text-gray-700'}`;
     if (!usedLetters[key]) return `${baseClass} ${darkMode ? 'bg-gray-600 text-white' : 'bg-gray-200 text-gray-700'}`;
     if (usedLetters[key] === 'correct') return `${baseClass} bg-green-500 text-white`;
@@ -27,9 +27,9 @@ const Keyboard = ({ usedLetters, onKeyPress, darkMode }) => {
   };
 
   return (
-    <div className="mb-4 w-full max-w-lg">
+    <div className="mb-4 w-full max-w-xl">
       {KEYBOARD_ROWS.map((row, i) => (
-        <div key={i} className="flex justify-center gap-1 my-1">
+    <div key={i} className="flex justify-center gap-1 sm:gap-2 my-1 sm:my-2">
           {row.map((key) => (
             <motion.button
               key={key}
