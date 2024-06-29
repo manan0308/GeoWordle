@@ -15,6 +15,7 @@ import { logError } from '../services/logService';
 import { validateWord } from '../utils/wordValidator';
 
 const MAX_GUESSES = 6;
+const IS_DEV = process.env.NODE_ENV === 'development';
 
 const Game = () => {
   const [answer, setAnswer] = useState('');
@@ -31,18 +32,31 @@ const Game = () => {
   const [stats, setStats] = useState({ played: 0, won: 0, streak: 0, maxStreak: 0, guesses: {} });
   const [isLoading, setIsLoading] = useState(true);
   const [showWelcome, setShowWelcome] = useState(true);
+  const [hasPlayedToday, setHasPlayedToday] = useState(false);
   const invisibleInputRef = useRef(null);
 
   useEffect(() => {
-    fetchDailyWord();
-    loadStats();
+    checkIfPlayedToday();
+    if (!hasPlayedToday) {
+      fetchDailyWord();
+      loadStats();
+    }
     
     const timer = setTimeout(() => {
       trackEvent('game_start', { 'event_category': 'Game', 'event_label': 'New Game Started' });
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [hasPlayedToday]);
+
+  const checkIfPlayedToday = () => {
+    if (IS_DEV) return; // Skip check in development mode
+    const lastPlayedDate = localStorage.getItem('lastPlayedDate');
+    const today = format(new Date(), 'yyyy-MM-dd');
+    if (lastPlayedDate === today) {
+      setHasPlayedToday(true);
+    }
+  };
 
   const fetchDailyWord = async () => {
     try {
@@ -98,8 +112,22 @@ const Game = () => {
     }
   };
 
+  const handleGameOver = (won) => {
+    setGameOver(true);
+    const today = format(new Date(), 'yyyy-MM-dd');
+    localStorage.setItem('lastPlayedDate', today);
+    if (won) {
+      setToast({ message: 'Congratulations! You guessed it!', type: 'success' });
+      confetti();
+    } else {
+      setToast({ message: `Game over. The word was ${answer}.`, type: 'error' });
+    }
+    const currentGuessIndex = guesses.findIndex(guess => guess === '');
+    updateStats(won, currentGuessIndex === -1 ? MAX_GUESSES : currentGuessIndex);
+  };
+
   const handleKeyPress = useCallback(async (key) => {
-    if (gameOver) return;
+    if (gameOver || hasPlayedToday) return;
 
     try {
       if (key === 'Enter') {
@@ -137,14 +165,9 @@ const Game = () => {
         setUsedLetters(newUsedLetters);
 
         if (currentGuess === answer) {
-          setGameOver(true);
-          setToast({ message: 'Congratulations! You guessed it!', type: 'success' });
-          confetti();
-          updateStats(true, currentGuessIndex + 1);
+          handleGameOver(true);
         } else if (currentGuessIndex === MAX_GUESSES - 1) {
-          setGameOver(true);
-          setToast({ message: `Game over. The word was ${answer}.`, type: 'error' });
-          updateStats(false, MAX_GUESSES);
+          handleGameOver(false);
         }
 
         setCurrentGuess('');
@@ -158,7 +181,7 @@ const Game = () => {
       console.error('Error handling key press:', error);
       setToast({ message: 'An error occurred. Please try again.', type: 'error' });
     }
-  }, [answer, currentGuess, gameOver, guesses, usedLetters]);
+  }, [answer, currentGuess, gameOver, guesses, usedLetters, hasPlayedToday]);
 
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -187,7 +210,8 @@ const Game = () => {
           answer[index] === letter ? '🟩' : answer.includes(letter) ? '🟨' : '⬛'
         ).join('')
       ).join('\n');
-      const shareText = `GeoWordle ${date} ${guessCount}/${MAX_GUESSES}\n\n${emojiGrid}`;
+      const playLink = "https://geowordle.mananagarwal.in/"; // Update this with your actual URL
+      const shareText = `GeoWordle ${date} ${guessCount}/${MAX_GUESSES}\n\n${emojiGrid}\n\nCan you beat my score? Play here: ${playLink}`;
       navigator.clipboard.writeText(shareText).then(() => {
         setToast({ message: 'Results copied to clipboard!', type: 'success' });
       }, (err) => {
@@ -200,8 +224,34 @@ const Game = () => {
     }
   };
 
+  const getTileColor = (letter, index, answer, guess) => {
+    if (answer[index] === letter) {
+      return 'bg-green-500 border-green-500 text-white';
+    } else if (answer.includes(letter)) {
+      // Count occurrences of the letter in the answer and in the guess up to this index
+      const answerCount = answer.split(letter).length - 1;
+      const guessCount = guess.slice(0, index + 1).split(letter).length - 1;
+      const correctPositions = guess.split('').filter((l, i) => l === letter && answer[i] === letter).length;
+      
+      if (guessCount <= answerCount - correctPositions) {
+        return 'bg-yellow-500 border-yellow-500 text-white';
+      }
+    }
+    return 'bg-gray-500 border-gray-500 text-white';
+  };
+
+
   if (isLoading) {
     return <div className="flex justify-center items-center h-screen">Loading...</div>;
+  }
+
+  if (hasPlayedToday) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen">
+        <h2 className="text-2xl mb-4">You've already played today!</h2>
+        <p>Come back tomorrow for a new word.</p>
+      </div>
+    );
   }
 
   return (
@@ -239,10 +289,7 @@ const Game = () => {
               <motion.div 
                 key={j} 
                 className={`w-10 h-10 sm:w-14 sm:h-14 border-2 flex items-center justify-center font-bold text-lg sm:text-2xl
-                  ${!guess[j] ? 'border-gray-300' :
-                    answer[j] === guess[j] ? 'bg-green-500 border-green-500 text-white' :
-                    answer.includes(guess[j]) ? 'bg-yellow-500 border-yellow-500 text-white' :
-                    'bg-gray-500 border-gray-500 text-white'}`}
+                  ${!guess[j] ? 'border-gray-300' : getTileColor(guess[j], j, answer, guess)}`}
                 initial={guess[j] ? { rotateX: 0 } : false}
                 animate={guess[j] ? { rotateX: 360 } : false}
                 transition={{ duration: 0.5 }}
@@ -260,7 +307,7 @@ const Game = () => {
         darkMode={darkMode}
       />
 
-     <div className="flex items-center mt-4 space-x-4">
+      <div className="flex items-center mt-4 space-x-4">
         <button 
           onClick={shareResults} 
           className={`flex items-center px-3 py-2 sm:px-4 sm:py-2 rounded ${darkMode ? 'bg-green-600' : 'bg-green-500'} text-white text-sm sm:text-base`}
@@ -271,23 +318,38 @@ const Game = () => {
         </button>
       </div>
 
+      <div className="mt-auto pt-4 text-sm text-center">
+      Made with ❤️ by <a href="https://twitter.com/manan_0308" target="_blank" rel="noopener noreferrer" className="underline">Manan Agarwal</a>
+    </div>
+
       <AnimatePresence>
         {toast.message && (
-           <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: '', type: '' })} />
+          <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: '', type: '' })} />
         )}
       </AnimatePresence>
 
       <HintSystem 
         show={showHints} 
-        onClose={() => {
-          setShowHints(false);
-        }} 
+        onClose={() => setShowHints(false)}
         hints={hints} 
         darkMode={darkMode} 
       />
-      <RulesModal show={showRules} onClose={() => setShowRules(false)} darkMode={darkMode} wordLength={answer.length} />
-      <StatsModal show={showStats} onClose={() => setShowStats(false)} stats={stats} darkMode={darkMode} />
-      <WelcomeModal show={showWelcome} onClose={() => setShowWelcome(false)} />
+      <RulesModal 
+        show={showRules} 
+        onClose={() => setShowRules(false)} 
+        darkMode={darkMode} 
+        wordLength={answer.length} 
+      />
+      <StatsModal 
+        show={showStats} 
+        onClose={() => setShowStats(false)} 
+        stats={stats} 
+        darkMode={darkMode} 
+      />
+      <WelcomeModal 
+        show={showWelcome} 
+        onClose={() => setShowWelcome(false)} 
+      />
     </div>
   );
 };
