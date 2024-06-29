@@ -22,14 +22,13 @@ app.get('/api/daily-word', (req, res) => {
   const today = new Date();
   const seed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
   const index = seed % words.length;
-  res.json({ 
+  res.json({
     word: words[index].word,
     hints: {
       hint1: words[index].hint1,
       hint2: words[index].hint2,
       hint3: words[index].hint3
-    },
-    validWords: words.map(word => word.word)
+    }
   });
 });
 
@@ -51,19 +50,15 @@ app.post('/api/log-event', (req, res) => {
   res.sendStatus(200);
 });
 
-// New API endpoint to validate words using Oxford API
+// API endpoint to validate words
 app.get('/api/validate-word', async (req, res) => {
   const { word } = req.query;
   const API_URL = process.env.REACT_APP_OXFORD_API_URL;
   const APP_ID = process.env.REACT_APP_OXFORD_APP_ID;
   const APP_KEY = process.env.REACT_APP_OXFORD_APP_KEY;
 
-  if (!API_URL || !APP_ID || !APP_KEY) {
-    console.error('Oxford API credentials are not set');
-    return res.status(500).json({ error: 'Oxford API credentials are not set' });
-  }
-
   try {
+    // Make API call to Oxford Dictionary
     const response = await axios.get(`${API_URL}/search/en-gb`, {
       params: {
         q: word,
@@ -77,6 +72,7 @@ app.get('/api/validate-word', async (req, res) => {
         'app_key': APP_KEY,
       }
     });
+
     res.json({ isValid: response.data.results && response.data.results.length > 0 });
   } catch (error) {
     console.error('Error validating word:', error);
