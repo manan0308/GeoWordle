@@ -47,11 +47,8 @@
     font-size: 1.5rem;
   }
   
-  .w-14 {
+  .w-14, .h-14 {
     width: 2.5rem;
-  }
-  
-  .h-14 {
     height: 2.5rem;
   }
   
@@ -66,4 +63,42 @@
   .mb-8 {
     margin-bottom: 1rem;
   }
+}
+
+/* Dark mode styles */
+.dark {
+  background-color: #1a202c;
+  color: #fff;
+}
+
+.dark .bg-white {
+  background-color: #2d3748;
+}
+
+.dark .text-black {
+  color: #fff;
+}
+
+/* HintSystem styles */
+.hint-modal {
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+.hint-content {
+  background-color: #fff;
+  color: #000;
+}
+
+.dark .hint-content {
+  background-color: #2d3748;
+  color: #fff;
+}
+
+.hint-button {
+  background-color: #4299e1;
+  color: #fff;
+}
+
+.dark .hint-button {
+  background-color: #2b6cb0;
 }
