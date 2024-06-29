@@ -24,11 +24,11 @@ const RulesModal = ({ show, onClose, darkMode, wordLength }) => {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
-      <div className={`bg-white p-6 rounded-lg max-w-md w-full ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-black'}`}>
+      <div className={`p-6 rounded-lg max-w-md w-full ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-black'}`}>
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-2xl font-bold">How to Play</h2>
           <button onClick={handleClose} className="p-1">
-            <X size={24} />
+            <X size={24} className={darkMode ? 'text-white' : 'text-black'} />
           </button>
         </div>
         <ul className="list-disc list-inside space-y-2 mb-4">
