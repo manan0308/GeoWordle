@@ -212,20 +212,26 @@ const Game = () => {
         onFocus={() => focusInvisibleInput()}
       />
       <header className="w-full max-w-lg flex justify-between items-center mb-8">
-        <button onClick={() => setShowRules(true)} className="p-2"><Info size={24} /></button>
+        <div className="flex items-center">
+          <button onClick={() => setShowRules(true)} className="p-2 mr-2"><Info size={24} /></button>
+          <button onClick={() => setShowHints(true)} className="p-2"><HelpCircle size={24} /></button>
+        </div>
         <h1 className="text-4xl font-bold flex items-center">
           <Globe className="mr-2" size={32} /> GeoWordle
         </h1>
-        <div className="flex">
-          <button onClick={() => setShowStats(true)} className="p-2 mr-2"><BarChart size={24} /></button>
+        <div className="flex items-center">
           <button onClick={() => setDarkMode(!darkMode)} className="p-2 mr-2">
             {darkMode ? <Sun size={24} /> : <Moon size={24} />}
           </button>
-          <button onClick={() => setShowHints(true)} className="p-2"><HelpCircle size={24} /></button>
+          <button onClick={() => setShowStats(true)} className="p-2"><BarChart size={24} /></button>
         </div>
       </header>
 
-      <div className="grid gap-1 mb-8" style={{ gridTemplateRows: `repeat(${MAX_GUESSES}, 1fr)` }}>
+      <div 
+        className="grid gap-1 mb-8" 
+        style={{ gridTemplateRows: `repeat(${MAX_GUESSES}, 1fr)` }}
+        onClick={() => focusInvisibleInput()}
+      >
         {guesses.map((guess, i) => (
           <div key={i} className="flex gap-1">
             {Array(answer.length).fill().map((_, j) => (
