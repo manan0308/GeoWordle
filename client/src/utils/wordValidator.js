@@ -1,58 +1,43 @@
+import { geographicalNames } from './geographicalNames';
 import axios from 'axios';
-import { geographicalNames } from './geographicalNames'; // Import geographical names from the same directory
 
-// Cache to store validated words
-const cache = new Map();
-const MAX_CACHE_SIZE = 1000;
-let callCount = 0;
-const MAX_CALLS_PER_MINUTE = 60;
-let lastResetTime = Date.now();
+// Use a Set for O(1) lookup time
+const geographicalNamesSet = new Set(geographicalNames.map(name => name.toUpperCase()));
 
-// Function to reset the API call count
-const resetCallCount = () => {
-  const now = Date.now();
-  if (now - lastResetTime >= 60000) {
-    callCount = 0;
-    lastResetTime = now;
-  }
-};
+const invalidWordsLog = new Set();
+const validationCache = new Map();
 
 export const validateWord = async (word) => {
-  console.log('Validating word:', word);
   const upperCaseWord = word.toUpperCase();
 
-  // Check if the word is in the geographical names list
-  if (geographicalNames.includes(upperCaseWord)) {
+  // Check cache first
+  if (validationCache.has(upperCaseWord)) {
+    return validationCache.get(upperCaseWord);
+  }
+
+  // Check if the word is in the geographical names set
+  if (geographicalNamesSet.has(upperCaseWord)) {
+    validationCache.set(upperCaseWord, true);
     return true;
   }
 
-  // Check if the word is in the cache
-  if (cache.has(upperCaseWord)) {
-    return cache.get(upperCaseWord);
-  }
+  // Log invalid word
+  invalidWordsLog.add(upperCaseWord);
 
-  resetCallCount();
-  if (callCount >= MAX_CALLS_PER_MINUTE) {
-    console.warn('API rate limit reached. Try again later.');
-    return true; // Assume valid to avoid blocking the game
-  }
-
+  // Log invalid words to the server
   try {
-    // Make API call to validate the word
-    const response = await axios.get(`/api/validate-word?word=${upperCaseWord}`);
-    console.log('API response:', response.data);
-    callCount++;
-    const isValid = response.data.isValid;
-    
-    // Manage cache size
-    if (cache.size >= MAX_CACHE_SIZE) {
-      const oldestKey = cache.keys().next().value;
-      cache.delete(oldestKey);
-    }
-    cache.set(upperCaseWord, isValid);
-    return isValid;
+    await axios.post('/api/log-invalid-word', { word: upperCaseWord });
   } catch (error) {
-    console.error('Error validating word:', error);
-    return true; // Assume valid to avoid blocking the game
+    console.error('Error logging invalid word:', error);
   }
+
+  validationCache.set(upperCaseWord, false);
+  return false;
 };
+
+export const getInvalidWordsLog = () => Array.from(invalidWordsLog);
+
+// Periodically clear the cache to prevent it from growing too large
+setInterval(() => {
+  validationCache.clear();
+}, 1000 * 60 * 60); // Clear cache every hour
