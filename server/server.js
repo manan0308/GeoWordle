@@ -50,33 +50,43 @@ app.post('/api/log-event', (req, res) => {
   res.sendStatus(200);
 });
 
-// API endpoint to validate words
-app.get('/api/validate-word', async (req, res) => {
-  const { word } = req.query;
-  const API_URL = process.env.REACT_APP_OXFORD_API_URL;
-  const APP_ID = process.env.REACT_APP_OXFORD_APP_ID;
-  const APP_KEY = process.env.REACT_APP_OXFORD_APP_KEY;
+const invalidWordsLogPath = path.join(__dirname, 'invalid_words.log');
+const invalidWordsCache = new Set();
 
+// Function to log invalid words
+const logInvalidWord = async (word) => {
+  const logEntry = `${new Date().toISOString()} - ${word}\n`;
   try {
-    // Make API call to Oxford Dictionary
-    const response = await axios.get(`${API_URL}/search/en-gb`, {
-      params: {
-        q: word,
-        limit: 1,
-        offset: 0,
-        prefix: 'false'
-      },
-      headers: {
-        'Accept': 'application/json',
-        'app_id': APP_ID,
-        'app_key': APP_KEY,
-      }
-    });
-
-    res.json({ isValid: response.data.results && response.data.results.length > 0 });
+    await fs.appendFile(invalidWordsLogPath, logEntry);
+    invalidWordsCache.add(word);
+    console.log('Invalid word logged:', word);
   } catch (error) {
-    console.error('Error validating word:', error);
-    res.status(500).json({ error: 'Error validating word' });
+    console.error('Error logging invalid word:', error);
+  }
+};
+
+// API endpoint to log invalid words
+app.post('/api/log-invalid-word', async (req, res) => {
+  const { word } = req.body;
+  if (!invalidWordsCache.has(word)) {
+    await logInvalidWord(word);
+  }
+  res.sendStatus(200);
+});
+
+// API endpoint to get invalid words log
+app.get('/api/invalid-words', async (req, res) => {
+  try {
+    if (invalidWordsCache.size === 0) {
+      const data = await fs.readFile(invalidWordsLogPath, 'utf8');
+      const words = data.split('\n').filter(Boolean).map(line => line.split(' - ')[1]);
+      invalidWordsCache.clear();
+      words.forEach(word => invalidWordsCache.add(word));
+    }
+    res.json(Array.from(invalidWordsCache));
+  } catch (error) {
+    console.error('Error reading invalid words log:', error);
+    res.status(500).json({ error: 'Error retrieving invalid words' });
   }
 });
 
