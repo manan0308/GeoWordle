@@ -124,6 +124,13 @@ const Game = () => {
     }
     const currentGuessIndex = guesses.findIndex(guess => guess === '');
     updateStats(won, currentGuessIndex === -1 ? MAX_GUESSES : currentGuessIndex);
+
+    // Log game completion event
+    trackEvent('game_completed', {
+      event_category: 'Game',
+      event_label: won ? 'Won' : 'Lost',
+      value: currentGuessIndex === -1 ? MAX_GUESSES : currentGuessIndex
+    });
   };
 
   const handleKeyPress = useCallback(async (key) => {
@@ -138,9 +145,10 @@ const Game = () => {
 
         const isValid = await validateWord(currentGuess);
         if (!isValid) {
-          setToast({ message: 'Not a valid word', type: 'error' });
+          setToast({ message: 'Not a valid country or city name', type: 'error' });
           return;
         }
+
 
         const currentGuessIndex = guesses.findIndex(guess => guess === '');
         if (currentGuessIndex === -1) return;
