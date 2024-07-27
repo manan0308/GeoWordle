@@ -4,7 +4,7 @@ import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { format } from 'date-fns';
-import { Globe, Moon, Sun, Share2, Info, BarChart, HelpCircle } from 'lucide-react';
+import { Globe, Moon, Sun, Share2, Info, BarChart, HelpCircle, Infinity } from 'lucide-react';
 import Keyboard from './Keyboard';
 import StatsModal from './StatsModal';
 import RulesModal from './RulesModal';
@@ -31,9 +31,11 @@ const Game = () => {
   const [showHints, setShowHints] = useState(false);
   const [stats, setStats] = useState({ played: 0, won: 0, streak: 0, maxStreak: 0, guesses: {} });
   const [isLoading, setIsLoading] = useState(true);
-  const [showWelcome, setShowWelcome] = useState(true);
+  const [showWelcome, setShowWelcome] = useState(false);
   const [hasPlayedToday, setHasPlayedToday] = useState(false);
+  const [showInfiniteTooltip, setShowInfiniteTooltip] = useState(false);
   const invisibleInputRef = useRef(null);
+  
 
   useEffect(() => {
     checkIfPlayedToday();
@@ -42,6 +44,12 @@ const Game = () => {
       loadStats();
     }
     
+    const hasSeenWelcome = localStorage.getItem('hasSeenWelcome');
+    if (!hasSeenWelcome) {
+      setShowWelcome(true);
+      localStorage.setItem('hasSeenWelcome', 'true');
+    }
+
     const timer = setTimeout(() => {
       trackEvent('game_start', { 'event_category': 'Game', 'event_label': 'New Game Started' });
     }, 1000);
@@ -84,7 +92,7 @@ const Game = () => {
     }
   };
 
-  const updateStats = (won, attempts) => {
+  const updateStats = useCallback((won, attempts) => {
     try {
       const newStats = {
         played: stats.played + 1,
@@ -103,16 +111,15 @@ const Game = () => {
       console.error('Error updating stats:', error);
       setToast({ message: 'Error updating stats.', type: 'error' });
     }
-  };
+  }, [stats]);
 
   const focusInvisibleInput = () => {
     if (invisibleInputRef.current) {
       invisibleInputRef.current.focus();
-      console.log('Invisible input focused'); // For debugging
     }
   };
 
-  const handleGameOver = (won) => {
+  const handleGameOver = useCallback((won) => {
     setGameOver(true);
     const today = format(new Date(), 'yyyy-MM-dd');
     localStorage.setItem('lastPlayedDate', today);
@@ -125,13 +132,12 @@ const Game = () => {
     const currentGuessIndex = guesses.findIndex(guess => guess === '');
     updateStats(won, currentGuessIndex === -1 ? MAX_GUESSES : currentGuessIndex);
 
-    // Log game completion event
     trackEvent('game_completed', {
       event_category: 'Game',
       event_label: won ? 'Won' : 'Lost',
       value: currentGuessIndex === -1 ? MAX_GUESSES : currentGuessIndex
     });
-  };
+  }, [answer, guesses, updateStats]);
 
   const handleKeyPress = useCallback(async (key) => {
     if (gameOver || hasPlayedToday) return;
@@ -148,7 +154,6 @@ const Game = () => {
           setToast({ message: 'Not a valid country or city name', type: 'error' });
           return;
         }
-
 
         const currentGuessIndex = guesses.findIndex(guess => guess === '');
         if (currentGuessIndex === -1) return;
@@ -189,7 +194,7 @@ const Game = () => {
       console.error('Error handling key press:', error);
       setToast({ message: 'An error occurred. Please try again.', type: 'error' });
     }
-  }, [answer, currentGuess, gameOver, guesses, usedLetters, hasPlayedToday]);
+  }, [answer, currentGuess, gameOver, guesses, usedLetters, hasPlayedToday, handleGameOver]);
 
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -218,7 +223,7 @@ const Game = () => {
           answer[index] === letter ? '🟩' : answer.includes(letter) ? '🟨' : '⬛'
         ).join('')
       ).join('\n');
-      const playLink = "https://geowordle.mananagarwal.in/"; // Update this with your actual URL
+      const playLink = "https://geowordle.com/";
       const shareText = `GeoWordle ${date} ${guessCount}/${MAX_GUESSES}\n\n${emojiGrid}\n\nCan you beat my score? Play here: ${playLink}`;
       navigator.clipboard.writeText(shareText).then(() => {
         setToast({ message: 'Results copied to clipboard!', type: 'success' });
@@ -232,11 +237,18 @@ const Game = () => {
     }
   };
 
+  const redirectToInfiniteMode = () => {
+    window.open('https://infinite.geowordle.com', '_blank');
+    trackEvent('redirect_to_infinite', {
+      event_category: 'Navigation',
+      event_label: 'Infinite Mode Redirect'
+    });
+  };
+
   const getTileColor = (letter, index, answer, guess) => {
     if (answer[index] === letter) {
       return 'bg-green-500 border-green-500 text-white';
     } else if (answer.includes(letter)) {
-      // Count occurrences of the letter in the answer and in the guess up to this index
       const answerCount = answer.split(letter).length - 1;
       const guessCount = guess.slice(0, index + 1).split(letter).length - 1;
       const correctPositions = guess.split('').filter((l, i) => l === letter && answer[i] === letter).length;
@@ -247,7 +259,6 @@ const Game = () => {
     }
     return 'bg-gray-500 border-gray-500 text-white';
   };
-
 
   if (isLoading) {
     return <div className="flex justify-center items-center h-screen">Loading...</div>;
@@ -315,7 +326,7 @@ const Game = () => {
         darkMode={darkMode}
       />
 
-      <div className="flex items-center mt-4 space-x-4">
+<div className="flex items-center mt-4 space-x-4">
         <button 
           onClick={shareResults} 
           className={`flex items-center px-3 py-2 sm:px-4 sm:py-2 rounded ${darkMode ? 'bg-green-600' : 'bg-green-500'} text-white text-sm sm:text-base`}
@@ -324,11 +335,28 @@ const Game = () => {
           <Share2 className="mr-1 sm:mr-2" size={16} />
           Share
         </button>
+        <div className="relative">
+          <button 
+            onClick={redirectToInfiniteMode}
+            onMouseEnter={() => setShowInfiniteTooltip(true)}
+            onMouseLeave={() => setShowInfiniteTooltip(false)}
+            className={`flex items-center px-3 py-2 sm:px-4 sm:py-2 rounded ${darkMode ? 'bg-blue-600' : 'bg-blue-500'} text-white text-sm sm:text-base`}
+          >
+            <Infinity className="mr-1 sm:mr-2" size={16} />
+            Play Infinite!
+          </button>
+          {showInfiniteTooltip && (
+            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded shadow-lg whitespace-nowrap">
+              Play GeoWordle without daily limits!
+              <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-8 border-transparent border-t-gray-800"></div>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="mt-auto pt-4 text-sm text-center">
-      Made with ❤️ by <a href="https://twitter.com/manan_0308" target="_blank" rel="noopener noreferrer" className="underline">Manan Agarwal</a>
-    </div>
+        Made with ❤️ by <a href="https://twitter.com/manan_0308" target="_blank" rel="noopener noreferrer" className="underline">Manan Agarwal</a>
+      </div>
 
       <AnimatePresence>
         {toast.message && (
