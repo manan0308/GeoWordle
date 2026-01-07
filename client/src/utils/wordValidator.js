@@ -4,8 +4,54 @@ import axios from 'axios';
 // Use a Set for O(1) lookup time
 const geographicalNamesSet = new Set(geographicalNames.map(name => name.toUpperCase()));
 
-const invalidWordsLog = new Set();
 const validationCache = new Map();
+const MAX_CACHE_SIZE = 1000;
+
+// Debounce invalid word logging to avoid excessive API calls
+let pendingInvalidWords = new Set();
+let logTimeout = null;
+
+const logInvalidWords = async () => {
+  if (pendingInvalidWords.size === 0) return;
+
+  const wordsToLog = Array.from(pendingInvalidWords);
+  pendingInvalidWords.clear();
+
+  try {
+    // Log all pending invalid words
+    await Promise.all(
+      wordsToLog.map(word =>
+        axios.post('/api/log-invalid-word', { word }).catch(() => {})
+      )
+    );
+  } catch (error) {
+    // Silently fail - not critical
+  }
+};
+
+const scheduleLogInvalidWord = (word) => {
+  pendingInvalidWords.add(word);
+
+  if (logTimeout) {
+    clearTimeout(logTimeout);
+  }
+
+  logTimeout = setTimeout(logInvalidWords, 2000);
+};
+
+// Check if word is valid English using free dictionary API
+const checkEnglishWord = async (word) => {
+  try {
+    const response = await axios.get(
+      `https://api.dictionaryapi.dev/api/v2/entries/en/${word.toLowerCase()}`,
+      { timeout: 3000 }
+    );
+    return response.status === 200;
+  } catch (error) {
+    // If API fails or word not found, return false
+    return false;
+  }
+};
 
 export const validateWord = async (word) => {
   const upperCaseWord = word.toUpperCase();
@@ -15,29 +61,36 @@ export const validateWord = async (word) => {
     return validationCache.get(upperCaseWord);
   }
 
-  // Check if the word is in the geographical names set
+  // First check if the word is in the geographical names set (fast, local check)
   if (geographicalNamesSet.has(upperCaseWord)) {
     validationCache.set(upperCaseWord, true);
     return true;
   }
 
-  // Log invalid word
-  invalidWordsLog.add(upperCaseWord);
+  // If not a geographical name, check if it's a valid English word
+  const isEnglishWord = await checkEnglishWord(upperCaseWord);
 
-  // Log invalid words to the server
-  try {
-    await axios.post('/api/log-invalid-word', { word: upperCaseWord });
-  } catch (error) {
-    console.error('Error logging invalid word:', error);
+  // Manage cache size
+  if (validationCache.size >= MAX_CACHE_SIZE) {
+    const firstKey = validationCache.keys().next().value;
+    validationCache.delete(firstKey);
   }
 
-  validationCache.set(upperCaseWord, false);
-  return false;
+  validationCache.set(upperCaseWord, isEnglishWord);
+
+  // Log invalid words asynchronously (debounced) - only if neither geo nor English
+  if (!isEnglishWord) {
+    scheduleLogInvalidWord(upperCaseWord);
+  }
+
+  return isEnglishWord;
 };
 
-export const getInvalidWordsLog = () => Array.from(invalidWordsLog);
-
-// Periodically clear the cache to prevent it from growing too large
-setInterval(() => {
+// For testing purposes
+export const clearValidationCache = () => {
   validationCache.clear();
-}, 1000 * 60 * 60); // Clear cache every hour
+};
+
+export const isValidGeographicalName = (word) => {
+  return geographicalNamesSet.has(word.toUpperCase());
+};

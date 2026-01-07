@@ -4,7 +4,7 @@ import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { format } from 'date-fns';
-import { Globe, Moon, Sun, Share2, Info, BarChart, HelpCircle, Infinity } from 'lucide-react';
+import { Globe, Moon, Sun, Share2, Info, BarChart, HelpCircle, Infinity, RotateCcw } from 'lucide-react';
 import Keyboard from './Keyboard';
 import StatsModal from './StatsModal';
 import RulesModal from './RulesModal';
@@ -34,8 +34,9 @@ const Game = () => {
   const [showWelcome, setShowWelcome] = useState(false);
   const [hasPlayedToday, setHasPlayedToday] = useState(false);
   const [showInfiniteTooltip, setShowInfiniteTooltip] = useState(false);
+  const [gameMode, setGameMode] = useState('daily'); // 'daily' or 'endless'
   const invisibleInputRef = useRef(null);
-  
+
 
   useEffect(() => {
     checkIfPlayedToday();
@@ -43,7 +44,7 @@ const Game = () => {
       fetchDailyWord();
       loadStats();
     }
-    
+
     const hasSeenWelcome = localStorage.getItem('hasSeenWelcome');
     if (!hasSeenWelcome) {
       setShowWelcome(true);
@@ -66,12 +67,16 @@ const Game = () => {
     }
   };
 
-  const fetchDailyWord = async () => {
+  const fetchDailyWord = async (mode = 'daily') => {
+    setIsLoading(true);
     try {
-      const response = await axios.get('/api/daily-word');
+      const response = await axios.get(`/api/daily-word?mode=${mode}`);
       setAnswer(response.data.word.toUpperCase());
       setHints(response.data.hints);
       setGuesses(Array(MAX_GUESSES).fill(''));
+      setGameOver(false);
+      setCurrentGuess('');
+      setUsedLetters({});
       setIsLoading(false);
     } catch (error) {
       logError('Error fetching daily word', error);
@@ -121,8 +126,11 @@ const Game = () => {
 
   const handleGameOver = useCallback((won) => {
     setGameOver(true);
-    const today = format(new Date(), 'yyyy-MM-dd');
-    localStorage.setItem('lastPlayedDate', today);
+    // Only save lastPlayedDate for daily mode
+    if (gameMode === 'daily') {
+      const today = format(new Date(), 'yyyy-MM-dd');
+      localStorage.setItem('lastPlayedDate', today);
+    }
     if (won) {
       setToast({ message: 'Congratulations! You guessed it!', type: 'success' });
       confetti();
@@ -137,10 +145,11 @@ const Game = () => {
       event_label: won ? 'Won' : 'Lost',
       value: currentGuessIndex === -1 ? MAX_GUESSES : currentGuessIndex
     });
-  }, [answer, guesses, updateStats]);
+  }, [answer, guesses, updateStats, gameMode]);
 
   const handleKeyPress = useCallback(async (key) => {
-    if (gameOver || hasPlayedToday) return;
+    // Allow play in endless mode even if played today
+    if (gameOver || (hasPlayedToday && gameMode === 'daily')) return;
 
     try {
       if (key === 'Enter') {
@@ -194,7 +203,7 @@ const Game = () => {
       console.error('Error handling key press:', error);
       setToast({ message: 'An error occurred. Please try again.', type: 'error' });
     }
-  }, [answer, currentGuess, gameOver, guesses, usedLetters, hasPlayedToday, handleGameOver]);
+  }, [answer, currentGuess, gameOver, guesses, usedLetters, hasPlayedToday, handleGameOver, gameMode]);
 
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -218,13 +227,16 @@ const Game = () => {
     try {
       const date = format(new Date(), 'yyyy-MM-dd');
       const guessCount = guesses.filter(guess => guess !== '').length;
-      const emojiGrid = guesses.map(guess => 
-        guess.split('').map((letter, index) => 
-          answer[index] === letter ? '🟩' : answer.includes(letter) ? '🟨' : '⬛'
-        ).join('')
-      ).join('\n');
+      const emojiGrid = guesses
+        .filter(guess => guess !== '')
+        .map(guess =>
+          guess.split('').map((letter, index) =>
+            answer[index] === letter ? '🟩' : answer.includes(letter) ? '🟨' : '⬛'
+          ).join('')
+        ).join('\n');
       const playLink = "https://geowordle.com/";
-      const shareText = `GeoWordle ${date} ${guessCount}/${MAX_GUESSES}\n\n${emojiGrid}\n\nCan you beat my score? Play here: ${playLink}`;
+      const modeText = gameMode === 'endless' ? ' (Endless)' : '';
+      const shareText = `GeoWordle${modeText} ${date} ${guessCount}/${MAX_GUESSES}\n\n${emojiGrid}\n\nCan you beat my score? Play here: ${playLink}`;
       navigator.clipboard.writeText(shareText).then(() => {
         setToast({ message: 'Results copied to clipboard!', type: 'success' });
       }, (err) => {
@@ -237,11 +249,21 @@ const Game = () => {
     }
   };
 
-  const redirectToInfiniteMode = () => {
-    window.open('https://infinite.geowordle.com', '_blank');
-    trackEvent('redirect_to_infinite', {
+  const startEndlessMode = () => {
+    setGameMode('endless');
+    setHasPlayedToday(false);
+    fetchDailyWord('endless');
+    trackEvent('start_endless', {
       event_category: 'Navigation',
-      event_label: 'Infinite Mode Redirect'
+      event_label: 'Started Endless Mode'
+    });
+  };
+
+  const nextEndlessWord = () => {
+    fetchDailyWord('endless');
+    trackEvent('next_endless_word', {
+      event_category: 'Game',
+      event_label: 'Next Endless Word'
     });
   };
 
@@ -252,7 +274,7 @@ const Game = () => {
       const answerCount = answer.split(letter).length - 1;
       const guessCount = guess.slice(0, index + 1).split(letter).length - 1;
       const correctPositions = guess.split('').filter((l, i) => l === letter && answer[i] === letter).length;
-      
+
       if (guessCount <= answerCount - correctPositions) {
         return 'bg-yellow-500 border-yellow-500 text-white';
       }
@@ -264,11 +286,18 @@ const Game = () => {
     return <div className="flex justify-center items-center h-screen">Loading...</div>;
   }
 
-  if (hasPlayedToday) {
+  if (hasPlayedToday && gameMode === 'daily') {
     return (
-      <div className="flex flex-col items-center justify-center h-screen">
+      <div className={`flex flex-col items-center justify-center h-screen ${darkMode ? 'bg-gray-900 text-white' : 'bg-white text-black'}`}>
         <h2 className="text-2xl mb-4">You've already played today!</h2>
-        <p>Come back tomorrow for a new word.</p>
+        <p className="mb-6">Come back tomorrow for a new word.</p>
+        <button
+          onClick={startEndlessMode}
+          className={`flex items-center px-4 py-2 rounded ${darkMode ? 'bg-blue-600' : 'bg-blue-500'} text-white`}
+        >
+          <Infinity className="mr-2" size={20} />
+          Play Endless Mode
+        </button>
       </div>
     );
   }
@@ -288,6 +317,7 @@ const Game = () => {
         </div>
         <h1 className="text-2xl sm:text-4xl font-bold flex items-center">
           <Globe className="mr-1 sm:mr-2" size={24} /> GeoWordle
+          {gameMode === 'endless' && <span className="text-sm ml-2 text-blue-500">(Endless)</span>}
         </h1>
         <div className="flex items-center">
           <button onClick={() => setDarkMode(!darkMode)} className="p-1 sm:p-2 mr-2">
@@ -297,16 +327,16 @@ const Game = () => {
         </div>
       </header>
 
-      <div 
-        className="grid gap-1 mb-4 sm:mb-8" 
+      <div
+        className="grid gap-1 mb-4 sm:mb-8"
         style={{ gridTemplateRows: `repeat(${MAX_GUESSES}, 1fr)` }}
         onClick={focusInvisibleInput}
       >
         {guesses.map((guess, i) => (
           <div key={i} className="flex gap-1 justify-center">
-            {Array(answer.length).fill().map((_, j) => (
-              <motion.div 
-                key={j} 
+            {Array(answer.length || 5).fill().map((_, j) => (
+              <motion.div
+                key={j}
                 className={`w-10 h-10 sm:w-14 sm:h-14 border-2 flex items-center justify-center font-bold text-lg sm:text-2xl
                   ${!guess[j] ? 'border-gray-300' : getTileColor(guess[j], j, answer, guess)}`}
                 initial={guess[j] ? { rotateX: 0 } : false}
@@ -324,34 +354,46 @@ const Game = () => {
         usedLetters={usedLetters}
         onKeyPress={handleKeyPress}
         darkMode={darkMode}
+        onClear={() => setCurrentGuess('')}
       />
 
-<div className="flex items-center mt-4 space-x-4">
-        <button 
-          onClick={shareResults} 
+      <div className="flex items-center mt-4 space-x-4">
+        <button
+          onClick={shareResults}
           className={`flex items-center px-3 py-2 sm:px-4 sm:py-2 rounded ${darkMode ? 'bg-green-600' : 'bg-green-500'} text-white text-sm sm:text-base`}
           disabled={!gameOver}
         >
           <Share2 className="mr-1 sm:mr-2" size={16} />
           Share
         </button>
-        <div className="relative">
-          <button 
-            onClick={redirectToInfiniteMode}
-            onMouseEnter={() => setShowInfiniteTooltip(true)}
-            onMouseLeave={() => setShowInfiniteTooltip(false)}
+
+        {gameMode === 'endless' && gameOver ? (
+          <button
+            onClick={nextEndlessWord}
             className={`flex items-center px-3 py-2 sm:px-4 sm:py-2 rounded ${darkMode ? 'bg-blue-600' : 'bg-blue-500'} text-white text-sm sm:text-base`}
           >
-            <Infinity className="mr-1 sm:mr-2" size={16} />
-            Play Infinite!
+            <RotateCcw className="mr-1 sm:mr-2" size={16} />
+            Next Word
           </button>
-          {showInfiniteTooltip && (
-            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded shadow-lg whitespace-nowrap">
-              Play GeoWordle without daily limits!
-              <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-8 border-transparent border-t-gray-800"></div>
-            </div>
-          )}
-        </div>
+        ) : (
+          <div className="relative">
+            <button
+              onClick={startEndlessMode}
+              onMouseEnter={() => setShowInfiniteTooltip(true)}
+              onMouseLeave={() => setShowInfiniteTooltip(false)}
+              className={`flex items-center px-3 py-2 sm:px-4 sm:py-2 rounded ${darkMode ? 'bg-blue-600' : 'bg-blue-500'} text-white text-sm sm:text-base`}
+            >
+              <Infinity className="mr-1 sm:mr-2" size={16} />
+              Play Endless!
+            </button>
+            {showInfiniteTooltip && (
+              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded shadow-lg whitespace-nowrap">
+                Play GeoWordle without daily limits!
+                <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-8 border-transparent border-t-gray-800"></div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="mt-auto pt-4 text-sm text-center">
@@ -364,27 +406,27 @@ const Game = () => {
         )}
       </AnimatePresence>
 
-      <HintSystem 
-        show={showHints} 
+      <HintSystem
+        show={showHints}
         onClose={() => setShowHints(false)}
-        hints={hints} 
-        darkMode={darkMode} 
+        hints={hints}
+        darkMode={darkMode}
       />
-      <RulesModal 
-        show={showRules} 
-        onClose={() => setShowRules(false)} 
-        darkMode={darkMode} 
-        wordLength={answer.length} 
+      <RulesModal
+        show={showRules}
+        onClose={() => setShowRules(false)}
+        darkMode={darkMode}
+        wordLength={answer.length}
       />
-      <StatsModal 
-        show={showStats} 
-        onClose={() => setShowStats(false)} 
-        stats={stats} 
-        darkMode={darkMode} 
+      <StatsModal
+        show={showStats}
+        onClose={() => setShowStats(false)}
+        stats={stats}
+        darkMode={darkMode}
       />
-      <WelcomeModal 
-        show={showWelcome} 
-        onClose={() => setShowWelcome(false)} 
+      <WelcomeModal
+        show={showWelcome}
+        onClose={() => setShowWelcome(false)}
       />
     </div>
   );
