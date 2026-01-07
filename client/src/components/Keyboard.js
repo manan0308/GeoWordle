@@ -1,5 +1,4 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 import { logError } from '../services/logService';
 
 const KEYBOARD_ROWS = [
@@ -9,22 +8,44 @@ const KEYBOARD_ROWS = [
 ];
 
 const Keyboard = ({ usedLetters, onKeyPress, darkMode }) => {
-  const getKeyClass = (key) => {
+  const getKeyStyle = (key) => {
     const isWide = key === 'Enter' || key === 'Backspace';
-    const baseClass = `h-14 rounded font-bold text-xs sm:text-sm flex items-center justify-center select-none transition-colors ${isWide ? 'px-3 sm:px-4 min-w-[65px] sm:min-w-[65px]' : 'w-8 sm:w-10'}`;
 
-    if (!usedLetters[key]) {
-      return `${baseClass} ${darkMode ? 'bg-gray-500 hover:bg-gray-400 text-white' : 'bg-gray-300 hover:bg-gray-400 text-black'}`;
+    // Base colors matching original Wordle
+    let bgColor = darkMode ? '#818384' : '#d3d6da';
+    let textColor = darkMode ? '#ffffff' : '#000000';
+
+    if (usedLetters[key] === 'correct') {
+      bgColor = '#6aaa64';
+      textColor = '#ffffff';
+    } else if (usedLetters[key] === 'present') {
+      bgColor = '#c9b458';
+      textColor = '#ffffff';
+    } else if (usedLetters[key] === 'absent') {
+      bgColor = darkMode ? '#3a3a3c' : '#787c7e';
+      textColor = '#ffffff';
     }
-    if (usedLetters[key] === 'correct') return `${baseClass} bg-green-600 text-white`;
-    if (usedLetters[key] === 'present') return `${baseClass} bg-yellow-500 text-white`;
-    return `${baseClass} ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-500 text-white'}`;
-  };
 
-  const getAriaLabel = (key) => {
-    if (key === 'Backspace') return 'backspace';
-    if (key === 'Enter') return 'enter';
-    return `add ${key.toLowerCase()}`;
+    return {
+      backgroundColor: bgColor,
+      color: textColor,
+      fontFamily: '"Clear Sans", "Helvetica Neue", Arial, sans-serif',
+      fontSize: '1.25em',
+      fontWeight: 'bold',
+      border: 0,
+      padding: 0,
+      margin: '0 6px 0 0',
+      height: '58px',
+      borderRadius: '4px',
+      cursor: 'pointer',
+      userSelect: 'none',
+      flex: isWide ? 1.5 : 1,
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      textTransform: 'uppercase',
+      WebkitTapHighlightColor: 'rgba(0, 0, 0, 0.3)',
+    };
   };
 
   const handleKeyPress = (key) => {
@@ -46,30 +67,48 @@ const Keyboard = ({ usedLetters, onKeyPress, darkMode }) => {
     if (key === 'Enter') {
       return 'enter';
     }
-    return key.toLowerCase();
+    return key;
   };
 
   return (
-    <div className="w-full max-w-lg mx-auto px-2" role="group" aria-label="Keyboard">
+    <div
+      style={{
+        height: '200px',
+        margin: '0 8px',
+        userSelect: 'none',
+      }}
+      role="group"
+      aria-label="Keyboard"
+    >
       {KEYBOARD_ROWS.map((row, i) => (
-        <div key={i} className="flex justify-center gap-1.5 my-1.5">
-          {/* Add half-width spacer for middle row to center it */}
-          {i === 1 && <div className="w-4 sm:w-5 flex-shrink-0" />}
+        <div
+          key={i}
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            width: '100%',
+            margin: '0 auto 8px',
+            touchAction: 'manipulation',
+          }}
+        >
+          {/* Half-width spacer for middle row */}
+          {i === 1 && <div style={{ flex: 0.5, maxWidth: '20px' }} />}
+
           {row.map((key) => (
-            <motion.button
+            <button
               key={key}
               type="button"
               data-key={key === 'Enter' ? '↵' : key === 'Backspace' ? '←' : key.toLowerCase()}
               onClick={() => handleKeyPress(key)}
-              className={getKeyClass(key)}
-              whileTap={{ scale: 0.95 }}
-              aria-label={getAriaLabel(key)}
+              style={getKeyStyle(key)}
+              aria-label={key === 'Backspace' ? 'backspace' : key === 'Enter' ? 'enter' : `add ${key.toLowerCase()}`}
             >
               {renderKey(key)}
-            </motion.button>
+            </button>
           ))}
-          {/* Add half-width spacer for middle row to center it */}
-          {i === 1 && <div className="w-4 sm:w-5 flex-shrink-0" />}
+
+          {/* Half-width spacer for middle row */}
+          {i === 1 && <div style={{ flex: 0.5, maxWidth: '20px' }} />}
         </div>
       ))}
     </div>

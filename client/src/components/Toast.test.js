@@ -19,18 +19,20 @@ describe('Toast', () => {
     expect(screen.getByText('Test message')).toBeInTheDocument();
   });
 
-  it('applies success class for success type', () => {
+  it('applies success styling for success type', () => {
     const { container } = render(
       <Toast message="Success!" type="success" onClose={mockOnClose} />
     );
-    expect(container.querySelector('.toast-success')).toBeInTheDocument();
+    // Toast uses Tailwind bg-green-500 for success
+    expect(container.querySelector('.bg-green-500')).toBeInTheDocument();
   });
 
-  it('applies error class for error type', () => {
+  it('applies error styling for error type', () => {
     const { container } = render(
       <Toast message="Error!" type="error" onClose={mockOnClose} />
     );
-    expect(container.querySelector('.toast-error')).toBeInTheDocument();
+    // Toast uses Tailwind bg-red-500 for error
+    expect(container.querySelector('.bg-red-500')).toBeInTheDocument();
   });
 
   it('calls onClose when close button is clicked', () => {

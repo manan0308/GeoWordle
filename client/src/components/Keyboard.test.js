@@ -29,7 +29,7 @@ describe('Keyboard', () => {
     expect(mockOnKeyPress).toHaveBeenCalledWith('A');
   });
 
-  it('applies correct status class to used letters', () => {
+  it('applies correct styling to used letters', () => {
     const propsWithUsedLetters = {
       ...defaultProps,
       usedLetters: {
@@ -46,13 +46,11 @@ describe('Keyboard', () => {
     const keyC = screen.getByText('C').closest('button');
     const keyD = screen.getByText('D').closest('button');
 
-    expect(keyA).toHaveClass('key-correct');
-    expect(keyB).toHaveClass('key-present');
-    expect(keyC).toHaveClass('key-absent');
-    expect(keyD).toHaveClass('key');
-    expect(keyD).not.toHaveClass('key-correct');
-    expect(keyD).not.toHaveClass('key-present');
-    expect(keyD).not.toHaveClass('key-absent');
+    // Check inline styles for correct colors
+    expect(keyA).toHaveStyle({ backgroundColor: '#6aaa64' }); // correct - green
+    expect(keyB).toHaveStyle({ backgroundColor: '#c9b458' }); // present - yellow
+    expect(keyC).toHaveStyle({ backgroundColor: '#787c7e' }); // absent - gray
+    expect(keyD).toHaveStyle({ backgroundColor: '#d3d6da' }); // unused - light gray
   });
 
   it('renders enter and backspace keys', () => {
@@ -66,13 +64,9 @@ describe('Keyboard', () => {
   it('handles Enter key click', () => {
     render(<Keyboard {...defaultProps} />);
 
-    // Find button with Enter (it renders an icon)
-    const buttons = screen.getAllByRole('button');
-    const enterButton = buttons.find(btn => btn.classList.contains('key-wide'));
-
-    if (enterButton) {
-      fireEvent.click(enterButton);
-      expect(mockOnKeyPress).toHaveBeenCalled();
-    }
+    // Find Enter button by its aria-label
+    const enterButton = screen.getByRole('button', { name: 'enter' });
+    fireEvent.click(enterButton);
+    expect(mockOnKeyPress).toHaveBeenCalledWith('Enter');
   });
 });
