@@ -67,10 +67,14 @@ const Game = () => {
     }
   };
 
-  const fetchDailyWord = async (mode = 'daily') => {
+  const fetchDailyWord = async (mode = 'daily', lastWord = '') => {
     setIsLoading(true);
     try {
-      const response = await axios.get(`/api/daily-word?mode=${mode}`);
+      // Pass lastWord to prevent consecutive duplicates in endless mode
+      const url = mode === 'endless' && lastWord
+        ? `/api/daily-word?mode=${mode}&lastWord=${lastWord}`
+        : `/api/daily-word?mode=${mode}`;
+      const response = await axios.get(url);
       setAnswer(response.data.word.toUpperCase());
       setHints(response.data.hints);
       setGuesses(Array(MAX_GUESSES).fill(''));
@@ -260,7 +264,7 @@ const Game = () => {
   };
 
   const nextEndlessWord = () => {
-    fetchDailyWord('endless');
+    fetchDailyWord('endless', answer);
     trackEvent('next_endless_word', {
       event_category: 'Game',
       event_label: 'Next Endless Word'
@@ -354,7 +358,6 @@ const Game = () => {
         usedLetters={usedLetters}
         onKeyPress={handleKeyPress}
         darkMode={darkMode}
-        onClear={() => setCurrentGuess('')}
       />
 
       <div className="flex items-center mt-4 space-x-4">

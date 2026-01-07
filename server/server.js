@@ -34,23 +34,30 @@ app.get('/api/health', (req, res) => {
 app.get('/api/daily-word', (req, res) => {
   try {
     const mode = req.query.mode || 'daily';
+    const lastWord = req.query.lastWord?.toUpperCase();
 
     if (words.length === 0) {
       return res.status(500).json({ error: 'No words available' });
     }
 
     let index;
+    let selectedWord;
+
     if (mode === 'endless') {
-      // Random word for endless mode
-      index = Math.floor(Math.random() * words.length);
+      // Random word for endless mode, avoiding consecutive duplicates
+      let attempts = 0;
+      do {
+        index = Math.floor(Math.random() * words.length);
+        selectedWord = words[index];
+        attempts++;
+      } while (selectedWord.word === lastWord && attempts < 10 && words.length > 1);
     } else {
       // Deterministic daily word based on date
       const today = new Date();
       const seed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
       index = seed % words.length;
+      selectedWord = words[index];
     }
-
-    const selectedWord = words[index];
 
     res.json({
       word: selectedWord.word,
